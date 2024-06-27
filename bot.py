@@ -13,7 +13,9 @@ with st.sidebar:
         replicate_api = st.secrets['REPLICATE_API_TOKEN']
     else:
         replicate_api = st.text_input('Enter Replicate API token:', type='password')
-        if replicate_api:
+        if not (replicate_api.startswith('r8_') and len(replicate_api) == 40):
+            st.warning('Please enter your credentials!', icon='⚠️')
+        else:
             st.success('Proceed to entering your prompt message!', icon='👉')
     os.environ['REPLICATE_API_TOKEN'] = replicate_api
 
@@ -49,19 +51,12 @@ def generate_llama2_response(prompt_input):
             string_dialogue += "User: " + dict_message["content"] + "\n\n"
         else:
             string_dialogue += "Assistant: " + dict_message["content"] + "\n\n"
-    try:
-        output = replicate.run(
-            llm, 
-            input={"prompt": f"{string_dialogue} {prompt_input} Assistant: ",
-                   "temperature": temperature, "top_p": top_p, "max_length": max_length, "repetition_penalty": 1}
-        )
-        return output
-    except replicate.exceptions.ReplicateError as e:
-        st.error(f"Replicate API error: {e}")
-        return None
-    except Exception as e:
-        st.error(f"An unexpected error occurred: {e}")
-        return None
+    output = replicate.run(
+        llm, 
+        input={"prompt": f"{string_dialogue} {prompt_input} Assistant: ",
+               "temperature": temperature, "top_p": top_p, "max_length": max_length, "repetition_penalty": 1}
+    )
+    return output
 
 # User-provided prompt
 if prompt := st.chat_input(disabled=not replicate_api):
@@ -74,14 +69,11 @@ if st.session_state.messages[-1]["role"] != "assistant":
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             response = generate_llama2_response(prompt)
-            if response:
-                placeholder = st.empty()
-                full_response = ''
-                for item in response:
-                    full_response += item
-                    placeholder.markdown(full_response)
+            placeholder = st.empty()
+            full_response = ''
+            for item in response:
+                full_response += item
                 placeholder.markdown(full_response)
-                message = {"role": "assistant", "content": full_response}
-                st.session_state.messages.append(message)
-            else:
-                st.error("Failed to generate a response.")
+            placeholder.markdown(full_response)
+    message = {"role": "assistant", "content": full_response}
+    st.session_state.messages.append(message)
